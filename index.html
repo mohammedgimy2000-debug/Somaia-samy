@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" /> <title>حاسبة سعر المنتج</title> <style>
+  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;direction:rtl;padding:20px;background:#f7f7f8;color:#111}
+  h1{margin-top:0}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px}
+  th,td{padding:8px;border:1px solid #ccc;text-align:center}
+  input,select{padding:6px;width:100%;box-sizing:border-box}
+  button{padding:8px 12px;cursor:pointer}
+  .summary{background:#fff;border:1px solid #ddd;padding:12px;border-radius:6px;margin-top:15px}
+  .muted{color:#666;font-size:0.9em}
+</style>
+</head>
+<body>
+
+<h1>حاسبة تكلفة وسعر المنتج</h1>
+<p class="muted">أدخل المكونات ونسبها أو كمياتها وتكلفة كل مكون لتحصل على السعر النهائي.</p>
+
+<label>وزن/كمية الوحدة النهائية (مثلاً 1000 جرام):</label> <input id="unitSize" type="number" value="1000" min="0" />
+
+<table id="ingredientsTable">
+ <thead>
+   <tr>
+     <th>المكوّن</th>
+     <th>طريقة الإدخال</th>
+     <th>قيمة (%) أو كمية</th>
+     <th>وحدة (معلومة)</th>
+     <th>تكلفة الوحدة (جنيه للوحدة)</th>
+     <th>الكمية المحسوبة</th>
+     <th>تكلفة المكوّن</th>
+     <th>حذف</th>
+   </tr>
+ </thead>
+ <tbody id="tbody"></tbody>
+</table>
+
+<button id="addRow">+ إضافة مكوّن</button> <button id="clearAll">مسح الكل</button> <button id="exportCsv">تصدير إلى Excel (CSV)</button>
+
+<div class="summary">
+ <label>مصاريف ثابتة لكل وحدة (جنيه):</label>  
+ <input id="fixedCost" type="number" value="0" min="0" />
+
+ <label>هامش ربح (%):</label>
+ <input id="profitMargin" type="number" value="30" min="0" />
+
+ <hr/>
+
+ <strong>إجمالي تكلفة المكونات: </strong><span id="totalIngredientCost">0</span> جنيه<br> 
+ <strong>التكلفة قبل الربح: </strong><span id="costBeforeProfit">0</span> جنيه<br>  
+ <strong>سعر البيع بعد الربح: </strong><span id="priceAfterProfit">0</span> جنيه </div>
+
+<script>
+function money(x){return Number.isFinite(x)?x.toFixed(2):'0.00'}
+
+const tbody=document.getElementById('tbody');
+const unitSizeInput=document.getElementById('unitSize');
+const fixedCostInput=document.getElementById('fixedCost');
+const profitMarginInput=document.getElementById('profitMargin');
+const totalIngredientCostEl=document.getElementById('totalIngredientCost');
+const costBeforeProfitEl=document.getElementById('costBeforeProfit');
+const priceAfterProfitEl=document.getElementById('priceAfterProfit');
+
+function createRow(name='',mode='%',value=0,unit='g',cost=0){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><input class="iname" value="${name}"></td>
+    <td>
+      <select class="imode">
+        <option value="%" ${mode==='%'?'selected':''}>%</option>
+        <option value="qty" ${mode==='qty'?'selected':''}>qty</option>
+      </select>
+    </td>
+    <td><input class="ivalue" type="number" value="${value}" min="0"></td>
+    <td><input class="iunit" value="${unit}"></td>
+    <td><input class="icost" type="number" value="${cost}" min="0" step="0.0001"></td>
+    <td class="icalcQty">0</td>
+    <td class="icalcCost">0</td>
+    <td><button class="del">حذف</button></td>`;
+  tr.querySelector('.del').addEventListener('click',()=>{
+   tr.remove()
+   ;recalc()
+   ;saveData();});
+ ['iname','imode','ivalue','iunit','icost'].forEach(cls=>{
+   tr.querySelector('.'+cls).addEventListener('input',()=>{
+     recalc();
+     saveData();
+   });
+ });
+ tbody.appendChild(tr);
+ recalc();
+ saveData();
+}
+
+function recalc(){
+  const unitSize=parseFloat(unitSizeInput.value)||0;
+  let total=0;
+  Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
+    const mode=tr.querySelector('.imode').value;
+    const val=parseFloat(tr.querySelector('.ivalue').value)||0;
+    const cost=parseFloat(tr.querySelector('.icost').value)||0;
+    let qty = mode==='%' ? unitSize*(val/100) : val;
+    let cst = qty*cost;
+    tr.querySelector('.icalcQty').textContent = money(qty);
+    tr.querySelector('.icalcCost').textContent = money(cst);
+    total += cst;
+  });
+  //totalIngredientCostEl.textContent = money(total);
+  //const fixed=parseFloat(fixedCostInput.value)||0;
+  //const before= total + fixed;
+  //costBeforeProfitEl.textContent = money(before);
+  //const margin=parseFloat(profitMarginInput.value)||0;
+  //const after = before * (1 + margin/100);
+  //priceAfterProfitEl.textContent = money(after);
+
+totalIngredientCostEl.textContent = money(total);
+const margin = parseFloat(profitMarginInput.value) || 0;
+const beforeBase = total;
+costBeforeProfitEl.textContent = money(beforeBase);
+let after = beforeBase * (1 + margin / 100);
+const fixed = parseFloat(fixedCostInput.value) || 0;
+after += fixed;
+priceAfterProfitEl.textContent = money(after); }
+
+document.getElementById('addRow').addEventListener('click',()=>createRow());
+document.getElementById('clearAll').addEventListener('click',()=>{tbody.innerHTML='';recalc();});
+[unitSizeInput,fixedCostInput,profitMarginInput].forEach(el=>el.addEventListener('input',recalc));
+
+// =================== حفظ واسترجاع البيانات =================== 
+
+function saveData(){
+  const data = Array.from(tbody.querySelectorAll('tr')).map(tr=>({
+    name: tr.querySelector('.iname').value,
+    mode: tr.querySelector('.imode').value,
+    value: tr.querySelector('.ivalue').value,
+    unit: tr.querySelector('.iunit').value,
+    cost: tr.querySelector('.icost').value
+  }));
+  const extras = {
+    unitSize: unitSizeInput.value,
+    fixedCost: fixedCostInput.value,
+    profitMargin: profitMarginInput.value
+  };
+  localStorage.setItem('ingredientsData', JSON.stringify({data,extras})); }
+
+function loadData(){
+  const saved = localStorage.getItem('ingredientsData');
+  if(!saved) return;
+  const {data,extras} = JSON.parse(saved);
+  tbody.innerHTML='';
+  data.forEach(d=>createRow(d.name,d.mode,d.value,d.unit,d.cost));
+  unitSizeInput.value = extras.unitSize;
+  fixedCostInput.value = extras.fixedCost;
+  profitMarginInput.value = extras.profitMargin;
+  recalc();
+}
+
+// =================== تصدير CSV =================== 
+
+document.getElementById('exportCsv').addEventListener('click',()=>{
+  let csv = 'المكون,طريقه الادخال,قيمه(%)او كميه,وحده,تكلفه الوحده,الكميه المحسوبه,تكلفه المكون \n';
+//let csv = 'حدة,الكمية المحسوبة,تكلفة المكوّن,إجمالي تكلفة المكونات,سعر البيع 
+  
+  tbody.querySelectorAll('tr').forEach(tr=>{
+    const cells = [
+      tr.querySelector('.iname').value,
+      tr.querySelector('.imode').value,
+      tr.querySelector('.ivalue').value,
+      tr.querySelector('.iunit').value,
+      tr.querySelector('.icost').value,
+      tr.querySelector('.icalcQty').textContent,
+      tr.querySelector('.icalcCost').textContent
+    ];
+    csv += cells.join(',') + '\n';
+	
+  });
+  csv += '\n';
+  csv += `إجمالي تكلفة المكونات,,${totalIngredientCostEl.textContent} جنيه\n`;
+  csv += `سعر البيع بعد الربح,,${priceAfterProfitEl.textContent} جنيه\n`;
+
+
+
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'product_costs.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// =================== أحداث الواجهة =================== 
+
+
+document.getElementById('clearAll').addEventListener('click',()=>{
+  tbody.innerHTML='';
+  recalc();
+  localStorage.removeItem('ingredientsData');
+});
+[unitSizeInput,fixedCostInput,profitMarginInput].forEach(el=>el.addEventListener('input',()=>{
+  recalc();
+  saveData();
+}));
+
+// تحميل بيانات محفوظة عند فتح الصفحة
+loadData();
+</script>
+
+</body>
+</html>
+
